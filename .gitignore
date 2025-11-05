@@ -37,3 +37,7 @@ __pycache__/
 *.exe
 *.out
 *.app
+*.tar.gz
+**/.DS_Store
+myenv310/
+myenv311/
