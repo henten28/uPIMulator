@@ -6,6 +6,7 @@ import (
 	"uPIMulator/src/device/simulator/dpu/dram"
 	"uPIMulator/src/device/simulator/dpu/logic"
 	"uPIMulator/src/device/simulator/dpu/sram"
+	"uPIMulator/src/device/simulator/interconnect"
 	"uPIMulator/src/misc"
 )
 
@@ -206,4 +207,32 @@ func (this *Dpu) Cycle() {
 	}
 
 	this.cycles++
+}
+
+// --- Minimal Interconnect Support ---
+
+// ConnectInterconnect links this DPU to the shared fabric.
+// ConnectInterconnect links this DPU to the shared fabric.
+// No-op to keep struct unchanged; we pass ic explicitly in calls.
+func (this *Dpu) ConnectInterconnect(ic *interconnect.Interconnect) {
+	_ = ic // avoid "imported and not used" / param unused
+}
+// SendSimple lets this DPU send a short message to another DPU.
+func (this *Dpu) SendSimple(ic *interconnect.Interconnect, dstCh, dstRk, dstDpu int, data []byte) error {
+	req := &interconnect.TransferRequest{
+		SrcChannelID: this.channel_id,
+		SrcRankID:    this.rank_id,
+		SrcDpuID:     this.dpu_id,
+		DstChannelID: dstCh,
+		DstRankID:    dstRk,
+		DstDpuID:     dstDpu,
+		Data:         append([]byte(nil), data...), // safe copy
+		Timestamp:    this.cycles,
+	}
+	return ic.Transfer(req)
+}
+
+// ReceiveSimple lets this DPU read data sent by another DPU.
+func (this *Dpu) ReceiveSimple(ic *interconnect.Interconnect, srcCh, srcRk, srcDpu int) ([]byte, error) {
+	return ic.Read(srcCh, srcRk, srcDpu)
 }

@@ -13,8 +13,10 @@ RUN apt install -y python3-pip
 
 # UPMEM SDK
 WORKDIR /root
-RUN wget sdk-releases.upmem.com/2023.2.0/ubuntu_22.04/upmem-2023.2.0-Linux-x86_64.tar.gz
-RUN tar -zxvf upmem-2023.2.0-Linux-x86_64.tar.gz
+RUN pip3 install gdown
+RUN gdown 1KWTkZnLWEMZ2X6RTxp9JSYEdm_3jogmV -O upmem-2024.2.0-Linux-x86_64.tar.gz
+RUN tar -zxvf upmem-2024.2.0-Linux-x86_64.tar.gz
 RUN echo "source /root/upmem-2023.2.0-Linux-x86_64/upmem_env.sh" > /root/.bashrc
 
 WORKDIR /root/uPIMulator
+
