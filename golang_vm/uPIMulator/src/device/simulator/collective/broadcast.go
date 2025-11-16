@@ -1,4 +1,3 @@
-// File: simulator/collective/broadcast.go
 package collective
 
 import (
@@ -6,33 +5,27 @@ import (
 	"uPIMulator/src/device/simulator/interconnect"
 )
 
-// BroadcastTopology represents a tree-based broadcast network
 type BroadcastTopology struct {
 	numNodes int
 	network  *interconnect.MeshNetwork
 	
-	// Tree parameters
-	branchingFactor int // Number of children per node (typically 2)
+	branchingFactor int
 	
-	// Node positions in mesh
 	nodePositions []struct {
 		x, y int
 	}
 	
-	// Statistics
 	totalMessages int64
 	totalLatency  int64
 	cycles        int64
 }
 
-// Init initializes the broadcast topology
 func (bt *BroadcastTopology) Init(network *interconnect.MeshNetwork, numNodes int) {
 	bt.network = network
 	bt.numNodes = numNodes
-	bt.branchingFactor = 2 // Binary tree
+	bt.branchingFactor = 2
 	bt.nodePositions = make([]struct{ x, y int }, numNodes)
 	
-	// Map nodes to mesh positions (same as ring)
 	for i := 0; i < numNodes; i++ {
 		bt.nodePositions[i].x = i / 8
 		bt.nodePositions[i].y = i % 8
@@ -41,15 +34,13 @@ func (bt *BroadcastTopology) Init(network *interconnect.MeshNetwork, numNodes in
 	fmt.Printf("✓ Broadcast topology initialized: %d nodes (binary tree)\n", numNodes)
 }
 
-// GetParent returns the parent node ID in the tree
 func (bt *BroadcastTopology) GetParent(nodeID int) int {
 	if nodeID == 0 {
-		return -1 // Root has no parent
+		return -1
 	}
 	return (nodeID - 1) / bt.branchingFactor
 }
 
-// GetChildren returns the children node IDs in the tree
 func (bt *BroadcastTopology) GetChildren(nodeID int) []int {
 	children := make([]int, 0, bt.branchingFactor)
 	
@@ -63,7 +54,6 @@ func (bt *BroadcastTopology) GetChildren(nodeID int) []int {
 	return children
 }
 
-// GetTreeDepth returns the depth of the tree
 func (bt *BroadcastTopology) GetTreeDepth() int {
 	if bt.numNodes <= 1 {
 		return 0
@@ -79,7 +69,6 @@ func (bt *BroadcastTopology) GetTreeDepth() int {
 	return depth
 }
 
-// SendToChildren sends data from a node to all its children
 func (bt *BroadcastTopology) SendToChildren(nodeID int, data []byte) error {
 	children := bt.GetChildren(nodeID)
 	
@@ -100,8 +89,6 @@ func (bt *BroadcastTopology) SendToChildren(nodeID int, data []byte) error {
 	return nil
 }
 
-// Broadcast performs tree-based broadcast from root to all nodes
-// Root node has the initial data, all others receive it
 func (bt *BroadcastTopology) Broadcast(rootID int, data []byte) error {
 	if rootID < 0 || rootID >= bt.numNodes {
 		return fmt.Errorf("invalid root ID: %d", rootID)
@@ -111,16 +98,13 @@ func (bt *BroadcastTopology) Broadcast(rootID int, data []byte) error {
 	fmt.Printf("Data size: %d bytes\n", len(data))
 	fmt.Printf("Tree depth: %d levels\n", bt.GetTreeDepth())
 	
-	// Track which nodes have received data
 	received := make([]bool, bt.numNodes)
 	received[rootID] = true
 	
-	// Broadcast level by level
 	depth := bt.GetTreeDepth()
 	for level := 0; level < depth; level++ {
 		fmt.Printf("\nLevel %d:\n", level)
 		
-		// Find all nodes that have data and can send
 		sendingNodes := make([]int, 0)
 		for nodeID := 0; nodeID < bt.numNodes; nodeID++ {
 			if received[nodeID] {
@@ -132,10 +116,9 @@ func (bt *BroadcastTopology) Broadcast(rootID int, data []byte) error {
 		}
 		
 		if len(sendingNodes) == 0 {
-			break // No more nodes to send
+			break
 		}
 		
-		// All sending nodes transmit to their children
 		for _, nodeID := range sendingNodes {
 			children := bt.GetChildren(nodeID)
 			fmt.Printf("  Node %d → Nodes %v\n", nodeID, children)
@@ -145,19 +128,16 @@ func (bt *BroadcastTopology) Broadcast(rootID int, data []byte) error {
 				return err
 			}
 			
-			// Mark children as having received data
 			for _, childID := range children {
 				received[childID] = true
 			}
 		}
 		
-		// Wait for all packets to be delivered
 		if !bt.network.RunUntilEmpty(1000) {
 			return fmt.Errorf("network timeout at level %d", level)
 		}
 	}
 	
-	// Verify all nodes received data
 	for nodeID := 0; nodeID < bt.numNodes; nodeID++ {
 		if !received[nodeID] {
 			return fmt.Errorf("node %d did not receive data", nodeID)
@@ -168,22 +148,18 @@ func (bt *BroadcastTopology) Broadcast(rootID int, data []byte) error {
 	return nil
 }
 
-// BroadcastSimple is a simplified synchronous broadcast
 func (bt *BroadcastTopology) BroadcastSimple(rootID int, data []byte) (int, error) {
 	if rootID < 0 || rootID >= bt.numNodes {
 		return 0, fmt.Errorf("invalid root ID: %d", rootID)
 	}
 	
-	// Track which nodes have data
 	hasData := make([]bool, bt.numNodes)
 	hasData[rootID] = true
 	
 	steps := 0
-	totalReceived := 1 // Root already has data
-	
-	// Broadcast until all nodes have data
+	totalReceived := 1
+
 	for totalReceived < bt.numNodes {
-		// Find nodes that can send (have data but haven't sent to children yet)
 		for nodeID := 0; nodeID < bt.numNodes; nodeID++ {
 			if !hasData[nodeID] {
 				continue
@@ -192,7 +168,6 @@ func (bt *BroadcastTopology) BroadcastSimple(rootID int, data []byte) (int, erro
 			children := bt.GetChildren(nodeID)
 			for _, childID := range children {
 				if !hasData[childID] {
-					// Send to child
 					srcX := bt.nodePositions[nodeID].x
 					srcY := bt.nodePositions[nodeID].y
 					dstX := bt.nodePositions[childID].x
@@ -206,7 +181,6 @@ func (bt *BroadcastTopology) BroadcastSimple(rootID int, data []byte) (int, erro
 			}
 		}
 		
-		// Run network
 		bt.network.RunUntilEmpty(1000)
 		steps++
 		
@@ -218,8 +192,6 @@ func (bt *BroadcastTopology) BroadcastSimple(rootID int, data []byte) (int, erro
 	return steps, nil
 }
 
-// MultiRootBroadcast performs broadcast from multiple roots simultaneously
-// Useful for multi-source scenarios
 func (bt *BroadcastTopology) MultiRootBroadcast(rootIDs []int, data [][]byte) error {
 	if len(rootIDs) != len(data) {
 		return fmt.Errorf("number of roots and data arrays must match")
@@ -227,7 +199,6 @@ func (bt *BroadcastTopology) MultiRootBroadcast(rootIDs []int, data [][]byte) er
 	
 	fmt.Printf("\n=== Multi-Root Broadcast (%d roots) ===\n", len(rootIDs))
 	
-	// Perform all broadcasts (may cause congestion)
 	for i, rootID := range rootIDs {
 		_, err := bt.BroadcastSimple(rootID, data[i])
 				if err != nil {
@@ -239,7 +210,6 @@ func (bt *BroadcastTopology) MultiRootBroadcast(rootIDs []int, data [][]byte) er
 	return nil
 }
 
-// GetStatistics returns broadcast topology statistics
 func (bt *BroadcastTopology) GetStatistics() map[string]interface{} {
 	stats := make(map[string]interface{})
 	stats["num_nodes"] = bt.numNodes
@@ -248,8 +218,7 @@ func (bt *BroadcastTopology) GetStatistics() map[string]interface{} {
 	stats["total_messages"] = bt.totalMessages
 	stats["avg_messages_per_node"] = float64(bt.totalMessages) / float64(bt.numNodes)
 	
-	// Theoretical minimum messages for broadcast
-	theoreticalMin := bt.numNodes - 1 // Each non-root receives exactly once
+	theoreticalMin := bt.numNodes - 1
 	stats["theoretical_min_messages"] = theoreticalMin
 	stats["efficiency"] = float64(theoreticalMin) / float64(bt.totalMessages)
 	
@@ -260,7 +229,6 @@ func (bt *BroadcastTopology) GetStatistics() map[string]interface{} {
 	return stats
 }
 
-// PrintTree prints the tree structure
 func (bt *BroadcastTopology) PrintTree() {
 	fmt.Println("\n=== Broadcast Tree Structure ===")
 	fmt.Printf("Root: Node 0\n")
@@ -269,11 +237,9 @@ func (bt *BroadcastTopology) PrintTree() {
 	for level := 0; level < depth; level++ {
 		fmt.Printf("\nLevel %d:\n", level+1)
 		
-		// Find nodes at this level
 		for nodeID := 1; nodeID < bt.numNodes; nodeID++ {
 			parent := bt.GetParent(nodeID)
 			
-			// Check if this node is at current level
 			nodeLevel := 0
 			tempID := nodeID
 			for tempID > 0 {
